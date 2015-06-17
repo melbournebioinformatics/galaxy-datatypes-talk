@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>Galaxy Datatypes</title>
+
+		<meta name="description" content="A 5 minute intro to Galaxy datatypes">
+		<meta name="author" content="Ira Cooke">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/black.css" id="theme">
+		<link rel="stylesheet" href="css/galaxydatatypes.css">
+
+		<!-- Code syntax highlighting -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+
+	<body>
+
+		<div class="reveal">
+
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+				<section>
+					<h1>Galaxy Datatypes</h1>
+				</section>
+
+				<section>
+					<h2>Galaxy would be pretty useless without datatypes ... </h2>
+					<h5 class="fragment">because they convey </h5>
+						<p class="fragment">the <strong>structure</strong> of data</p>
+						<p class="fragment">how data can be <strong>visualised</strong></p>
+						<p class="fragment">acceptable <strong>inputs and outputs</strong> of tools</p>
+
+				</section>
+
+				<section>
+					<h2>Most common datatypes are already in Galaxy</h2>
+					<ul>
+						<li class="fragment">200+ defined in 
+<pre class="fragment highlight-red">config/datatypes_conf.xml</pre></li>
+						<li class="fragment">Many more on toolshed
+<pre class="fragment highlight-red">emboss_datatypes
+proteomics_datatypes</pre></li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>Defining a custom datatype</h2>
+
+					<ul>
+					<li class="fragment">Simplest to just subclass an existing datatype</li>
+						<li>
+<pre><code data-trim class="fragment">
+&lt;datatype extension="special_tabular" 
+type="galaxy.datatypes.tabular:Tabular" subclass="True"/>
+					</code></pre>
+						</li>
+						<li class="fragment">Useful if <strong>special_tabular</strong> is produced and consumed by specific tools</li>					
+
+						<li class="fragment">Define in <code>datatypes_conf.xml</code> within a toolshed tool or "hack" into Galaxy's <code>datatypes_conf.xml</code></li>
+					</ul>
+				</section>
+
+				<section>
+					<h4>More advanced datatype behaviour requires a custom Python class</h4>
+					<p class="fragment">For example the <strong>sqlite</strong> datatype is defined as ... </p>					
+<pre><code data-trim class="fragment">
+&lt;datatype extension="sqlite" 
+type="galaxy.datatypes.binary:SQLite" ... />
+					</code></pre>					
+					<p class="fragment">so inside <code>lib/galaxy/datatypes/binary.py</code> we expect to find this class</p>
+<pre><code data-trim class="fragment">
+class SQlite ( Binary ):
+    """Class describing a Sqlite database """
+    ...
+</code></pre>					
+					
+				</section>
+
+				<section>
+					<h2>Custom sniffer</h2>				
+<div  class="fragment">
+In <strong>binary.py</strong>
+
+<pre><code data-trim>
+class SQlite ( Binary ):
+    """Class describing a Sqlite database """
+</code></pre>
+<pre><code class="fragment">
+	def sniff( self, filename ):
+	    try:
+	        header = open(filename).read(16)
+	        if binascii.b2a_hex(header) == binascii.hexlify('SQLite format 3\0'):
+	            return True
+		...
+Binary.register_sniffable_binary_format("sqlite", "sqlite", SQlite)
+</code></pre>
+</div>				
+<div class="fragment">
+In <strong>datatypes_conf.xml</strong>
+
+<pre><code data-trim class="fragment">
+&lt;sniffers>
+    <sniffer type="galaxy.datatypes.binary:SQLite"/>
+    ...
+</code></pre>
+				</section>
+
+
+				<section>
+					<h2>Other code hooks</h2>								
+<div class="fragment">
+<div class="fragment fade-outup">
+<pre><code data-trim class="python">
+def set_meta( self, dataset, overwrite = True, **kwd ):
+	...
+	dataset.metadata.tables = tables
+	dataset.metadata.table_columns = columns
+	dataset.metadata.table_row_count = rowcounts	
+</code></pre>
+</div>
+</div>
+<div class="fragment">
+Set text to display in history preview
+<div class="fragment fade-outup">
+<pre><code data-trim class="python">
+   def set_peek( self, dataset, is_multi_byte=False ):
+   	...
+            dataset.peek  = "SQLite Database"
+            lines = ['SQLite Database']
+            for table in dataset.metadata.tables:
+                try:
+                    lines.append('%s [%s]' % (table,dataset.metadata.table_row_count[table]))
+			...
+            dataset.peek = '\n'.join(lines)
+            dataset.blurb = data.nice_size( dataset.get_size() )
+</code></pre>
+</div>
+</div>
+				<img class="fragment" src="sqlite_preview.png"/>					
+
+				</section>
+				
+				<section>
+					<h2>Datatypes in a toolshed repository</h2>
+<div class="fragment">
+<div class="fragment fade-outup">
+<pre class="strong">
+	proteomics-datatypes/</pre>
+<pre>		datatypes_conf.xml
+		proteomics.py
+</pre>
+</div>					
+</div>
+<div class="fragment">
+In <strong>datatypes_conf.xml</strong>
+<pre><code class="xml">
+&lt;datatype_files>
+    <datatype_file name="proteomics.py"/>
+  </datatype_files>
+  ...
+  <datatype extension="mgf" type="galaxy.datatypes.proteomics:Mgf" display_in_upload="true" />
+  ...
+</code></pre>
+</div>
+
+
+
+				</section>
+
+				<section>
+				<h2>Composite datatypes</h2>
+				<ul>
+					<li class="fragment">Often used for data that requires companion files (eg indexes)</li>
+					<li class="fragment">Two types, basic and auto_primary_file</li>
+					<li class="fragment">Not well supported by the new file uploader</li>
+					<li class="fragment">The <a href="https://github.com/iracooke/proteomics-datatypes/blob/master/proteomics.py">Wiff</a> datatype demonstrates auto_primary_file </li>
+				</ul>
+				
+				</section>
+
+				<section>
+				<h2>Datatypes and Visualisation</h2>
+				
+				<div class="fragment">
+				<div class="fragment fade-outup">Decorators link a datatype to a data provider
+<pre><code class="python">
+@dataproviders.decorators.has_dataproviders
+class SQlite ( Binary ):
+	...
+    @dataproviders.decorators.dataprovider_factory( ... )
+
+    # Return provider instance
+    def sqlite_dataprovider( self, dataset, **settings ):
+    	...
+    	return dataproviders.dataset.SQliteDataProvider(...)
+		
+</code>
+</pre>				
+				</div>
+				</div>
+
+				<div class="fragment">
+				<div class="fragment fade-outup">Data provider returns data in response to a query				
+<pre><code class="python">
+class SQliteDataProvider( base.DataProvider ):
+    """
+    Allows any query to be run and returns the resulting rows
+    """
+
+    def __init__( self, source, query=None, **kwargs ):
+	"""Connects to database"""
+
+    def __iter__( self ):
+	"""Template code can use this to iterate rows"""
+
+</code></pre>
+				</div>
+				</div>
+
+				<div class="fragment">
+				<div class="fragment fade-outup">Visualisation code goes in;
+
+				<pre>config/plugins/visualizations/<strong>visname</strong>/templates/<strong>vizname.mako</strong></pre></div>
+				<div class="fragment">
+				Mako template to query sqlite datatype ... 
+<pre><code class="html">
+<%
+rows=hda.datatype.dataprovider(hda,'sqlite',query="a query")
+%>
+## ------------
+&lt;!DOCTYPE HTML&gt;
+&lt;html>
+...
+&lt;body>
+<ul>
+% for row in rows:
+	#write row to html
+% endfor
+</ul>
+&lt;/body&gt;
+
+</code></pre>
+				</div>
+				</div>
+
+
+				</section>
+
+
+				<section>
+				<h2>Datatypes and Visualisation</h2>
+				<ul>
+					<li class="fragment">Dataproviders allow interactive client-side visualisations with data retrieved from server as needed</li>
+					<li class="fragment">Galaxy's <strong>trackster</strong> and<strong>scatterplot</strong> use this mechanism</li>
+					<li class="fragment">Visualisations can be delivered via the Toolshed</li>
+				</ul>
+				</section>
+				
+			</div>
+
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+			
+
+		</script>
+
+	</body>
+</html>
